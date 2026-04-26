@@ -196,7 +196,7 @@
 		    stars.push(new Star());
 		}
 
-		// ========== 鼠标移动：持续生成【划水涟漪】核心效果 ==========
+		// ========== 鼠标移动：持续生成【划水涟漪】 ==========
 		window.addEventListener('mousemove', e => {
 		    // 每帧鼠标移动，生成一个小涟漪
 		    waterWaves.push({
@@ -208,7 +208,7 @@
 		    });
 		});
 
-		// ========== 绘制鼠标划过的 层层水波荡漾（你要的效果） ==========
+		// ========== 绘制鼠标划过的 层层水波荡漾 ==========
 		function drawWaterWave() {
 		    for(let i = waterWaves.length - 1; i >= 0; i--) {
 		        let w = waterWaves[i];
