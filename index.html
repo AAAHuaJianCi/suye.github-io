@@ -13,31 +13,23 @@
         * {
             margin: 0;
             padding: 0;
-            /* 统一盒模型，边框内缩 */
             box-sizing: border-box;
         }
 
         body {
-            /* 全局字体 */
             font-family: "Microsoft YaHei", sans-serif;
-            /* 默认文字白色 */
             color: #ffffff;
-            /* 禁止页面滚动 */
             overflow: hidden;
         }
 
         /* ========== 动态星空背景画布 ========== */
         #starBg {
-            /* 固定定位，永久垫底 */
             position: fixed;
             top: 0;
             left: 0;
-            /* 铺满全屏 */
             width: 100%;
             height: 100%;
-            /* 深空底色 */
             background-color: #000412;
-            /* 层级最低，不遮挡内容 */
             z-index: -1;
         }
 
@@ -48,26 +40,21 @@
             left: 0;
             width: 100%;
             height: 70px;
-            /* 横向居中排列 */
             display: flex;
             justify-content: center;
             align-items: center;
-            /* 顶部渐变透明遮罩 */
             background: linear-gradient(rgba(0,0,0,0.4), transparent);
             z-index: 10;
         }
 
-        /* 导航链接样式 */
         .nav a {
             color: #c5d8f8;
             text-decoration: none;
             font-size: 16px;
             margin: 0 22px;
-            /* 过渡动画 */
             transition: 0.3s ease;
         }
 
-        /* 导航悬浮+选中效果 */
         .nav a:hover,
         .nav a.active {
             color: #fff;
@@ -85,40 +72,58 @@
             padding-top: 30px;
         }
 
-        /* ========== 毛玻璃卡片通用样式 ========== */
+        /* ========== 毛玻璃卡片 ========== */
         .card {
             width: 230px;
             height: 160px;
-            /* 半透明背景 */
             background: rgba(40, 60, 110, 0.18);
-            /* 毛玻璃模糊 */
             backdrop-filter: blur(12px);
-            /* 细边框 */
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255,255,255,0.12);
             border-radius: 16px;
             display: flex;
             justify-content: center;
             align-items: center;
             font-size: 18px;
             color: #e0edff;
-            /* 悬浮上浮动画 */
             transition: transform 0.3s;
             cursor: pointer;
         }
 
-        /* 卡片悬浮效果 */
         .card:hover {
             transform: translateY(-8px);
             box-shadow: 0 8px 25px rgba(100, 150, 255, 0.15);
         }
+        
+        /* ========== 悬浮调色按钮 ========== */
+		.color-btn{
+		    position: fixed;
+		    right: 30px;
+		    bottom: 50%;
+		    width: 50px;
+		    height: 50px;
+		    border-radius: 50%;
+		    background: rgba(255,255,255,0.15);
+		    backdrop-filter: blur(6px);
+		    border: 1px solid rgba(255,255,255,0.2);
+		    cursor: pointer;
+		    z-index: 999;
+		    transition: 0.3s;
+		}
+		.color-btn:hover{
+		    transform: scale(1.1);
+		    background: rgba(255,255,255,0.25);
+		}
+		#colorPicker{
+		    position: fixed;
+		    opacity: 0;
+		    pointer-events: none;
+		}
     </style>
 </head>
 <body>
 
-    <!-- 动态星空画布 - 核心背景 -->
     <canvas id="starBg"></canvas>
 
-    <!-- 顶部导航栏 -->
     <div class="nav">
         <a href="index.html" class="active">首页</a>
         <a href="#">随笔</a>
@@ -126,84 +131,166 @@
         <a href="#">Unity游戏历程</a>
     </div>
 
-    <!-- 首页三大板块卡片 -->
     <div class="container">
         <div class="card">📖 随笔</div>
         <div class="card">💻 Web学习</div>
         <div class="card">🎮 Unity游戏历程</div>
     </div>
-
+	
+	<div class="color-btn"></div>
+	<input type="color" id="colorPicker">
 
     <script>
-        // ========== 动态星空 JS ==========
-        // 获取画布元素
-        const canvas = document.getElementById('starBg');
-        // 获取2D绘图上下文
-        const ctx = canvas.getContext('2d');
+		// ========== 全局配置 ==========
+		let waveColor = "#e6f0ff";   // 划过水波纹颜色（可自定义）
+		let waterWaves = [];         // 鼠标划过产生的连续涟漪数组
+		
+		// ========== 画布 & 星空 ==========
+		const canvas = document.getElementById('starBg');
+		const ctx = canvas.getContext('2d');
+		let winW, winH;
+		let stars = [];
 
-        // 定义变量：画布宽、高、星星数组
-        let winW, winH;
-        let stars = [];
+		// 离屏画布：保证星空纯净不被特效污染
+		const bgCanvas = document.createElement('canvas');
+		const bgCtx = bgCanvas.getContext('2d');
+		
+		// 窗口适配
+		function setSize() {
+		    winW = canvas.width = window.innerWidth;
+		    winH = canvas.height = window.innerHeight;
+		    bgCanvas.width = winW;
+		    bgCanvas.height = winH;
+		    bgCtx.fillStyle = "#000412";
+		    bgCtx.fillRect(0, 0, winW, winH);
+		}
+		setSize();
+		window.addEventListener('resize', setSize);
+		
+		// 星星实体类
+		class Star {
+		    constructor() {
+		        this.x = Math.random() * winW;
+		        this.y = Math.random() * winH;
+		        this.r = Math.random() * 1.5;
+		        this.speed = Math.random() * 0.25;
+		        this.alpha = Math.random();
+		    }
+		    update() {
+		        this.y += this.speed;
+		        if (this.y > winH) {
+		            this.y = 0;
+		            this.x = Math.random() * winW;
+		        }
+		    }
+		    draw() {
+		        bgCtx.beginPath();
+		        bgCtx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+		        bgCtx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
+		        bgCtx.fill();
+		    }
+		}
+		
+		// 生成星空
+		for(let i = 0; i < 600; i++){
+		    stars.push(new Star());
+		}
 
-        // 初始化画布大小 = 窗口大小
-        function setSize() {
-            winW = canvas.width = window.innerWidth;
-            winH = canvas.height = window.innerHeight;
-        }
-        setSize();
-        // 窗口大小改变时重设画布
-        window.addEventListener('resize', setSize);
+		// ========== 鼠标移动：持续生成【划水涟漪】核心效果 ==========
+		window.addEventListener('mousemove', e => {
+		    // 每帧鼠标移动，生成一个小涟漪
+		    waterWaves.push({
+		        x: e.clientX,
+		        y: e.clientY,
+		        r: 2,        // 初始半径
+		        maxR: 35,    // 涟漪最大扩散范围
+		        alpha: 0.55  // 初始透明度
+		    });
+		});
 
-        // 星星构造函数
-        class Star {
-            constructor() {
-                // 初始化星星属性
-                this.x = Math.random() * winW;     // 随机横向坐标
-                this.y = Math.random() * winH;     // 随机纵向坐标
-                this.r = Math.random() * 1.5;      // 随机大小
-                this.speed = Math.random() * 0.25; // 随机下落速度
-                this.alpha = Math.random();        // 随机透明度
-            }
+		// ========== 绘制鼠标划过的 层层水波荡漾（你要的效果） ==========
+		function drawWaterWave() {
+		    for(let i = waterWaves.length - 1; i >= 0; i--) {
+		        let w = waterWaves[i];
+		        // 涟漪不断扩大
+		        w.r += 0.8;
+		        // 慢慢淡化
+		        w.alpha -= 0.018;
 
-            // 更新星星位置
-            update() {
-                this.y += this.speed;
-                // 星星划出底部，重置到顶部循环
-                if (this.y > winH) {
-                    this.y = 0;
-                    this.x = Math.random() * winW;
-                }
-            }
+		        // 绘制环形水波纹
+		        ctx.beginPath();
+		        ctx.arc(w.x, w.y, w.r, 0, Math.PI * 2);
+		        ctx.strokeStyle = waveColor;
+		        ctx.globalAlpha = w.alpha;
+		        ctx.lineWidth = 1.2;
+		        ctx.stroke();
 
-            // 绘制单个星星
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255, 255, 255, ${this.alpha})`;
-                ctx.fill();
-            }
-        }
-
-        // 创建350颗星星
-        for(let i = 0; i < 600; i++){
-            stars.push(new Star());
-        }
-
-        // 动画循环
-        function animate() {
-            // 清除上一帧画面
-            ctx.clearRect(0, 0, winW, winH);
-            // 遍历所有星星：更新位置 + 绘制
-            stars.forEach(item => {
-                item.update();
-                item.draw();
-            });
-            // 持续递归调用，实现动态效果
-            requestAnimationFrame(animate);
-        }
-        // 启动星空动画
-        animate();
-    </script>
+		        // 完全透明后销毁，释放性能
+		        if(w.alpha <= 0){
+		            waterWaves.splice(i, 1);
+		        }
+		    }
+		    // 重置全局透明度，防止污染其他特效
+		    ctx.globalAlpha = 1;
+		}
+		
+		// ========== 鼠标点击 大圆波纹 ==========
+		let clickRippleList = [];
+		window.addEventListener('click', e => {
+		    clickRippleList.push({
+		        x: e.clientX,
+		        y: e.clientY,
+		        radius: 0,
+		        alpha: 0.6
+		    });
+		});
+		
+		// 点击水波绘制
+		function drawClickRipple() {
+		    for(let i = clickRippleList.length - 1; i >= 0; i--) {
+		        let r = clickRippleList[i];
+		        r.radius += 2;
+		        r.alpha -= 0.015;
+		        ctx.beginPath();
+		        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+		        ctx.strokeStyle = `rgba(200, 230, 255, ${r.alpha})`;
+		        ctx.lineWidth = 2;
+		        ctx.stroke();
+		        if(r.alpha <= 0) clickRippleList.splice(i, 1);
+		    }
+		}
+		
+		// ========== 颜色选择器绑定 ==========
+		const colorBtn = document.querySelector('.color-btn');
+		const colorPicker = document.getElementById('colorPicker');
+		colorBtn.addEventListener('click', ()=> colorPicker.click());
+		colorPicker.addEventListener('input', (e) => {
+		    waveColor = e.target.value;
+		});
+		
+		// ========== 主动画循环 ==========
+		function animate() {
+		    ctx.clearRect(0, 0, winW, winH);
+		
+		    // 绘制纯净星空底层
+		    bgCtx.clearRect(0, 0, winW, winH);
+		    bgCtx.fillStyle = "#000412";
+		    bgCtx.fillRect(0, 0, winW, winH);
+		    stars.forEach(item => {
+		        item.update();
+		        item.draw();
+		    });
+		    ctx.drawImage(bgCanvas, 0, 0);
+		
+		    // 先画：鼠标划过连续水波纹（划开荡漾）
+		    drawWaterWave();
+		    // 后画：点击大圆水波
+		    drawClickRipple();
+		
+		    requestAnimationFrame(animate);
+		}
+		animate();
+	</script>
 
 </body>
 </html>
